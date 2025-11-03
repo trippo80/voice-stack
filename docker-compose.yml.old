@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  voice-stt:
+    build: ./voice-stt
+    container_name: voice-stt
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: "4g"
+        reservations:
+          cpus: "2.0"
+          memory: "2g"
+
+  voice-brain:
+    build: ./voice-brain
+    container_name: voice-brain
+    restart: unless-stopped
+    environment:
+      LITELLM_URL: "http://10.0.0.16:4000/v1/chat/completions"
+      LITELLM_TOKEN: "sk-6WVQ_sqYXelqpIDFkbDQlQ"
+      LITELLM_MODEL: "ollama/llama3.1:8b"
+      HA_URL: "http://192.168.1.43:8123"
+      HA_TOKEN: "foobar"
+    ports: 
+      - "5002:5002"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "1g"
+        reservations:
+          cpus: "0.5"
+          memory: "512m"
+
+  voice-tts:
+    build: ./voice-tts
+    container_name: voice-tts
+    restart: unless-stopped
+    ports:
+      - "5003:5003"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "2g"
+        reservations:
+          cpus: "1.0"
+          memory: "1g"
+

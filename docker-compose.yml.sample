@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  voice-gateway:
+    build: ./voice-gateway
+    container_name: voice-gateway
+    restart: unless-stopped
+    environment:
+      LITELLM_URL: "http://0.0.0.0:4000/v1/chat/completions"
+      LITELLM_MODEL: "ollama/modelName"
+      LITELLM_KEY: ""
+
+      HA_URL: "http://0.0.0.0:8123"
+      HA_TOKEN: ""
+
+      WHISPER_MODEL_NAME: "tiny"
+      VOICE_DIR: "/app/voices"
+
+      PIPER_VOLUME: "0.8"
+      PIPER_LENGTH_SCALE: "0.75"
+      PIPER_NOISE_SCALE: "1.0"
+      PIPER_NOISE_W_SCALE: "1.0"
+      PIPER_NORMALIZE: "false"
+    ports:
+      - "5002:5002"
+    deploy:
+      resources:
+        limits:
+          cpus: "6.0"
+          memory: "8g"
+        reservations:
+          cpus: "3.0"
+          memory: "4g"
+
