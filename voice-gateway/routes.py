@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, File, Form, UploadFile, Response
 from typing import Dict, Any, List
 
@@ -36,6 +37,21 @@ async def pipeline_http(room: str = Form(...), audio: UploadFile = File(...)):
     out_wav = build_wav(chunks, meta)
 
     return Response(content=out_wav, media_type="audio/wav")
+
+@router.post("/tts")
+async def tts(body: Dict[str, Any]):
+    text = body.get("text", "")
+    meta, chunks = await synthesize_chunks(text)
+    out_wav = build_wav(chunks, meta)
+    return Response(content=out_wav, media_type="audio/wav")
+
+@router.post("/ask")
+async def ask(body: Dict[str, Any]):
+    text = body.get("text", "")
+    room = body.get("room", "okant")
+    response = await ask_llm(text, room)
+
+    return response
 
 @router.post("/announce")
 async def announce(body: Dict[str, Any]):
