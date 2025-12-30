@@ -1,11 +1,14 @@
 import json
 import uuid
 import asyncio
+import logging
 from datetime import datetime
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketDisconnect, WebSocketState
 
 from stt import transcribe_wav
+
+logger = logging.getLogger(__name__)
 from tts import synthesize_chunks
 from brain import ask_llm, call_home_assistant_if_needed
 from utils import pcm_to_wav
@@ -32,6 +35,7 @@ async def ws_handler(ws: WebSocket):
     - "end_recording": vi kör STT -> brain -> HA -> TTS och streamar tillbaka
     """
     await ws.accept()
+    logger.info("New WebSocket connection accepted")
 
     device_id = None
     room = "unknown"
@@ -51,10 +55,12 @@ async def ws_handler(ws: WebSocket):
 
             # Binärt = mic audio chunk
             if msg.get("bytes") is not None:
+                chunk = msg["bytes"]
+                logger.debug(f"[{device_id or 'unknown'}] Received binary chunk: {len(chunk)} bytes")
                 if not recording_done:
-                    chunk = msg["bytes"]
                     # Check audio size limit
                     if recorded_bytes_total + len(chunk) > MAX_AUDIO_BYTES:
+                        logger.warning(f"[{device_id}] Recording too large, rejecting")
                         await ws.send_json({
                             "type": "error",
                             "error": "recording_too_large",
@@ -70,13 +76,16 @@ async def ws_handler(ws: WebSocket):
 
             # Text = kontrollmeddelande
             if msg.get("text") is not None:
+                raw_text = msg["text"]
+                logger.debug(f"[{device_id or 'unknown'}] Received text: {raw_text[:200]}")
                 try:
-                    data = json.loads(msg["text"])
-                except Exception:
-                    # garbage från klienten -> ignorera
+                    data = json.loads(raw_text)
+                except Exception as e:
+                    logger.warning(f"[{device_id or 'unknown'}] Invalid JSON received: {e}")
                     continue
 
                 msg_type = data.get("type")
+                logger.info(f"[{device_id or 'unknown'}] Message type: {msg_type}")
 
                 if msg_type == "hello":
                     # ESP32 registrerar sig
@@ -87,6 +96,8 @@ async def ws_handler(ws: WebSocket):
                     mic_sr = fmt.get("sample_rate", mic_sr)
                     mic_width = fmt.get("sample_width", mic_width)
                     mic_ch = fmt.get("channels", mic_ch)
+
+                    logger.info(f"[{device_id}] Registered: room={room}, mic={mic_sr}Hz/{mic_width*8}bit/{mic_ch}ch")
 
                     clients[device_id] = {
                         "ws": ws,
@@ -102,6 +113,7 @@ async def ws_handler(ws: WebSocket):
 
                 elif msg_type == "end_recording":
                     # Slut på tal → vi processar allt
+                    logger.info(f"[{device_id}] End recording: {len(recorded_chunks)} chunks, {recorded_bytes_total} bytes")
 
                     recording_done = True
 
@@ -143,18 +155,25 @@ async def ws_handler(ws: WebSocket):
                         # Run pipeline with timeout
                         async def run_pipeline():
                             # 2. STT (run in thread pool to avoid blocking)
+                            logger.info(f"[{device_id}] Starting STT...")
                             user_text = await asyncio.to_thread(transcribe_wav, wav_bytes)
+                            logger.info(f"[{device_id}] STT result: '{user_text}'")
 
                             if not user_text.strip():
+                                logger.warning(f"[{device_id}] Empty transcription")
                                 return None, "Jag hörde inte vad du sa."
 
                             # 3. Brain (LLM) + ev. Home Assistant
+                            logger.info(f"[{device_id}] Calling LLM...")
                             action_obj = await ask_llm(user_text, room)
+                            logger.info(f"[{device_id}] LLM response: {action_obj}")
                             await call_home_assistant_if_needed(action_obj)
                             reply_text = action_obj.get("reply", "Okej.")
 
                             # 4. TTS (reply_text -> röst)
+                            logger.info(f"[{device_id}] Generating TTS for: '{reply_text}'")
                             meta, tts_chunks = await synthesize_chunks(reply_text)
+                            logger.info(f"[{device_id}] TTS done: {len(tts_chunks)} chunks")
                             return (meta, tts_chunks), reply_text
 
                         result, reply_text = await asyncio.wait_for(
@@ -169,6 +188,7 @@ async def ws_handler(ws: WebSocket):
                             meta, tts_chunks = result
 
                     except asyncio.TimeoutError:
+                        logger.error(f"[{device_id}] Pipeline timeout after {PIPELINE_TIMEOUT_SEC}s")
                         await ws.send_json({
                             "type": "error",
                             "error": "pipeline_timeout",
@@ -180,7 +200,7 @@ async def ws_handler(ws: WebSocket):
                         continue
 
                     except Exception as e:
-                        print(f"Pipeline error for {device_id}: {e}")
+                        logger.exception(f"[{device_id}] Pipeline error: {e}")
                         await ws.send_json({
                             "type": "error",
                             "error": "pipeline_error",
@@ -209,6 +229,7 @@ async def ws_handler(ws: WebSocket):
                     await ws.send_json({
                         "type": "assistant_end"
                     })
+                    logger.info(f"[{device_id}] Response sent successfully")
 
                     # 6. Reset så nästa fråga kan börja utan ny socket
                     recorded_chunks.clear()
@@ -217,12 +238,13 @@ async def ws_handler(ws: WebSocket):
 
             # Klienten stänger
             if msg["type"] == "websocket.disconnect":
+                logger.info(f"[{device_id or 'unknown'}] Client requested disconnect")
                 break
 
     except WebSocketDisconnect:
-        pass
+        logger.info(f"[{device_id or 'unknown'}] WebSocket disconnected")
     except Exception as e:
-        print("WS error:", e)
+        logger.exception(f"[{device_id or 'unknown'}] WebSocket error: {e}")
 
     finally:
         # Städa upp
@@ -232,7 +254,7 @@ async def ws_handler(ws: WebSocket):
         if ws.client_state != WebSocketState.DISCONNECTED:
             await ws.close()
 
-        print(f"WS client {device_id or 'unknown'} disconnected")
+        logger.info(f"[{device_id or 'unknown'}] Connection closed, cleanup done")
 
 
 async def broadcast_tts(target_ids, text: str):
@@ -256,7 +278,7 @@ async def broadcast_tts(target_ids, text: str):
     else:
         chosen = [cid for cid in target_ids if cid in clients]
 
-    print(f"Broadcast '{text}' to {chosen}")
+    logger.info(f"Broadcasting '{text}' to {chosen}")
 
     dead_clients = []
 
@@ -286,7 +308,7 @@ async def broadcast_tts(target_ids, text: str):
             })
 
         except Exception as e:
-            print(f"Broadcast to {cid} failed:", e)
+            logger.error(f"Broadcast to {cid} failed: {e}")
             dead_clients.append(cid)
 
     # rensa döda clients

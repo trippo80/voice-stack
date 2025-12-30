@@ -1,9 +1,19 @@
+import logging
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from websocket_handler import ws_handler
 from routes import router as http_router
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+# Set DEBUG level for websocket_handler to see chunk-level logs
+# logging.getLogger("websocket_handler").setLevel(logging.DEBUG)
 
 app = FastAPI()
 app.add_middleware(
