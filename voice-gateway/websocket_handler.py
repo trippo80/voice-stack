@@ -1,5 +1,6 @@
 import json
 import uuid
+import asyncio
 from datetime import datetime
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketDisconnect, WebSocketState
@@ -16,6 +17,11 @@ from utils import pcm_to_wav
 #   "last_seen": datetime.utcnow(),
 # }
 clients = {}
+
+# Audio limits
+MAX_AUDIO_BYTES = 10 * 1024 * 1024  # 10 MB max recording
+MAX_AUDIO_DURATION_SEC = 60  # 60 seconds max
+PIPELINE_TIMEOUT_SEC = 60  # timeout for full STT -> LLM -> TTS pipeline
 
 
 async def ws_handler(ws: WebSocket):
@@ -36,6 +42,7 @@ async def ws_handler(ws: WebSocket):
     mic_ch = 1
 
     recorded_chunks = []
+    recorded_bytes_total = 0
     recording_done = False
 
     try:
@@ -45,7 +52,20 @@ async def ws_handler(ws: WebSocket):
             # Binärt = mic audio chunk
             if msg.get("bytes") is not None:
                 if not recording_done:
-                    recorded_chunks.append(msg["bytes"])
+                    chunk = msg["bytes"]
+                    # Check audio size limit
+                    if recorded_bytes_total + len(chunk) > MAX_AUDIO_BYTES:
+                        await ws.send_json({
+                            "type": "error",
+                            "error": "recording_too_large",
+                            "message": f"Recording exceeds {MAX_AUDIO_BYTES // (1024*1024)} MB limit",
+                        })
+                        recorded_chunks.clear()
+                        recorded_bytes_total = 0
+                        recording_done = True
+                        continue
+                    recorded_chunks.append(chunk)
+                    recorded_bytes_total += len(chunk)
                 continue
 
             # Text = kontrollmeddelande
@@ -85,8 +105,33 @@ async def ws_handler(ws: WebSocket):
 
                     recording_done = True
 
+                    # Check if we have any audio
+                    if not recorded_chunks:
+                        await ws.send_json({
+                            "type": "error",
+                            "error": "no_audio",
+                            "message": "No audio data received",
+                        })
+                        recording_done = False
+                        continue
+
                     # 1. bygg WAV av inspelad PCM
                     pcm_all = b"".join(recorded_chunks)
+
+                    # Check duration limit
+                    bytes_per_sample = mic_width * mic_ch
+                    duration_sec = len(pcm_all) / (mic_sr * bytes_per_sample)
+                    if duration_sec > MAX_AUDIO_DURATION_SEC:
+                        await ws.send_json({
+                            "type": "error",
+                            "error": "recording_too_long",
+                            "message": f"Recording exceeds {MAX_AUDIO_DURATION_SEC}s limit",
+                        })
+                        recorded_chunks.clear()
+                        recorded_bytes_total = 0
+                        recording_done = False
+                        continue
+
                     wav_bytes = pcm_to_wav(
                         pcm_all,
                         sample_rate=mic_sr,
@@ -94,16 +139,57 @@ async def ws_handler(ws: WebSocket):
                         channels=mic_ch,
                     )
 
-                    # 2. STT
-                    user_text = transcribe_wav(wav_bytes)
+                    try:
+                        # Run pipeline with timeout
+                        async def run_pipeline():
+                            # 2. STT (run in thread pool to avoid blocking)
+                            user_text = await asyncio.to_thread(transcribe_wav, wav_bytes)
 
-                    # 3. Brain (LLM) + ev. Home Assistant
-                    action_obj = await ask_llm(user_text, room)
-                    await call_home_assistant_if_needed(action_obj)
-                    reply_text = action_obj.get("reply", "Okej.")
+                            if not user_text.strip():
+                                return None, "Jag hörde inte vad du sa."
 
-                    # 4. TTS (reply_text -> röst)
-                    meta, tts_chunks = await synthesize_chunks(reply_text)
+                            # 3. Brain (LLM) + ev. Home Assistant
+                            action_obj = await ask_llm(user_text, room)
+                            await call_home_assistant_if_needed(action_obj)
+                            reply_text = action_obj.get("reply", "Okej.")
+
+                            # 4. TTS (reply_text -> röst)
+                            meta, tts_chunks = await synthesize_chunks(reply_text)
+                            return (meta, tts_chunks), reply_text
+
+                        result, reply_text = await asyncio.wait_for(
+                            run_pipeline(),
+                            timeout=PIPELINE_TIMEOUT_SEC
+                        )
+
+                        if result is None:
+                            # Empty transcription - send simple response
+                            meta, tts_chunks = await synthesize_chunks(reply_text)
+                        else:
+                            meta, tts_chunks = result
+
+                    except asyncio.TimeoutError:
+                        await ws.send_json({
+                            "type": "error",
+                            "error": "pipeline_timeout",
+                            "message": f"Processing timed out after {PIPELINE_TIMEOUT_SEC}s",
+                        })
+                        recorded_chunks.clear()
+                        recorded_bytes_total = 0
+                        recording_done = False
+                        continue
+
+                    except Exception as e:
+                        print(f"Pipeline error for {device_id}: {e}")
+                        await ws.send_json({
+                            "type": "error",
+                            "error": "pipeline_error",
+                            "message": "Failed to process audio",
+                        })
+                        recorded_chunks.clear()
+                        recorded_bytes_total = 0
+                        recording_done = False
+                        continue
 
                     # 5. Skicka ner svaret till just den här klienten:
                     #    Först metadata (så ESP32 kan sätta I2S-format)
@@ -126,6 +212,7 @@ async def ws_handler(ws: WebSocket):
 
                     # 6. Reset så nästa fråga kan börja utan ny socket
                     recorded_chunks.clear()
+                    recorded_bytes_total = 0
                     recording_done = False
 
             # Klienten stänger
@@ -160,7 +247,7 @@ async def broadcast_tts(target_ids, text: str):
       2) binära PCM16-chunks
       3) JSON {type:"broadcast_end"}
     """
-    from .tts import synthesize_chunks  # import här för att undvika circular
+    # synthesize_chunks is already imported at module level
     meta, tts_chunks = await synthesize_chunks(text)
 
     # bestäm mottagare
