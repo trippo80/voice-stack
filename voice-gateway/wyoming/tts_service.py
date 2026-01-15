@@ -33,8 +33,8 @@ def get_tts_info() -> Info:
     return Info(
         tts=[
             TtsProgram(
-                name="piper",
-                description="A fast, local, neural text to speech engine",
+                name="voice-gateway-tts",
+                description="Voice Gateway TTS (Piper)",
                 attribution=PIPER_ATTRIBUTION,
                 installed=True,
                 voices=[
@@ -43,7 +43,7 @@ def get_tts_info() -> Info:
                         languages=[VOICE_LANGUAGE],
                         attribution=PIPER_ATTRIBUTION,
                         installed=True,
-                        description=f"Piper voice: {VOICE_NAME}",
+                        description=f"Voice Gateway - {VOICE_NAME}",
                     )
                 ],
             )

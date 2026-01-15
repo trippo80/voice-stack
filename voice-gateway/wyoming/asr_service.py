@@ -29,17 +29,17 @@ def get_asr_info() -> Info:
     return Info(
         asr=[
             AsrProgram(
-                name="faster-whisper",
-                description="Faster Whisper speech-to-text",
+                name="voice-gateway-stt",
+                description="Voice Gateway STT (Faster Whisper)",
                 attribution=WHISPER_ATTRIBUTION,
                 installed=True,
                 models=[
                     AsrModel(
-                        name=WHISPER_MODEL_NAME,
+                        name=f"voice-gateway-{WHISPER_MODEL_NAME}",
                         languages=[ASR_LANGUAGE],
                         attribution=WHISPER_ATTRIBUTION,
                         installed=True,
-                        description=f"Whisper {WHISPER_MODEL_NAME} model",
+                        description=f"Voice Gateway - Whisper {WHISPER_MODEL_NAME}",
                     )
                 ],
             )
