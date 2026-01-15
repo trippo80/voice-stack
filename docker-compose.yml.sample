@@ -21,8 +21,19 @@ services:
       PIPER_NOISE_SCALE: "1.0"
       PIPER_NOISE_W_SCALE: "1.0"
       PIPER_NORMALIZE: "false"
+
+      # Wyoming Protocol (Home Assistant voice integration)
+      WYOMING_TTS_ENABLED: "true"
+      WYOMING_TTS_PORT: "10200"
+      WYOMING_ASR_ENABLED: "true"
+      WYOMING_ASR_PORT: "10300"
+      VOICE_NAME: "sv_SE-lisa-medium"
+      VOICE_LANGUAGE: "sv-SE"
+      ASR_LANGUAGE: "sv"
     ports:
-      - "5002:5002"
+      - "5002:5002"    # HTTP/WebSocket API
+      - "10200:10200"  # Wyoming TTS
+      - "10300:10300"  # Wyoming ASR
     deploy:
       resources:
         limits:
