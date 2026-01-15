@@ -1,4 +1,3 @@
-import json
 from fastapi import APIRouter, File, Form, UploadFile, Response
 from typing import Dict, Any, List
 
@@ -6,6 +5,10 @@ from stt import transcribe_wav
 from tts import synthesize_chunks, build_wav
 from brain import ask_llm, call_home_assistant_if_needed
 from websocket_handler import clients, broadcast_tts
+from config import (
+    WYOMING_TTS_ENABLED, WYOMING_TTS_PORT,
+    WYOMING_ASR_ENABLED, WYOMING_ASR_PORT,
+)
 
 router = APIRouter()
 
@@ -14,6 +17,10 @@ async def health():
     return {
         "ok": True,
         "connected_clients": list(clients.keys()),
+        "wyoming": {
+            "tts": {"enabled": WYOMING_TTS_ENABLED, "port": WYOMING_TTS_PORT},
+            "asr": {"enabled": WYOMING_ASR_ENABLED, "port": WYOMING_ASR_PORT},
+        },
     }
 
 @router.post("/pipeline-http")

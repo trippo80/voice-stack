@@ -28,22 +28,28 @@ RUN pip install --no-cache-dir -r requirements.txt
 #    Vi kopierar hela mappen så att vi kan köra som ett paket
 COPY . .
 
-# 6. Exponera porten
-EXPOSE 5002
+# 6. Exponera portar (HTTP/WebSocket + Wyoming TTS + Wyoming ASR)
+EXPOSE 5002 10200 10300
 
 # 7. Default envs (kan overrideas i docker-compose)
+#    Note: LITELLM_KEY and HA_TOKEN must be set via docker-compose or runtime
 ENV LITELLM_URL="http://litellm:4000/v1/chat/completions" \
     LITELLM_MODEL="your-fast-model" \
-    LITELLM_KEY="" \
     HA_URL="http://homeassistant:8123" \
-    HA_TOKEN="CHANGE_ME" \
     WHISPER_MODEL_NAME="tiny" \
     VOICE_DIR="/app/voices/sv_SE-nst-medium" \
     PIPER_VOLUME="0.8" \
     PIPER_LENGTH_SCALE="0.75" \
     PIPER_NOISE_SCALE="1.0" \
     PIPER_NOISE_W_SCALE="1.0" \
-    PIPER_NORMALIZE="false"
+    PIPER_NORMALIZE="false" \
+    WYOMING_TTS_ENABLED="true" \
+    WYOMING_TTS_PORT="10200" \
+    WYOMING_ASR_ENABLED="true" \
+    WYOMING_ASR_PORT="10300" \
+    VOICE_NAME="sv_SE-lisa-medium" \
+    VOICE_LANGUAGE="sv-SE" \
+    ASR_LANGUAGE="sv"
 
 # 8. Starta servern
 #    Vi kör uvicorn direkt mot main:app.

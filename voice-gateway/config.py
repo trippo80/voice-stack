@@ -22,3 +22,14 @@ PIPER_LENGTH_SCALE = float(os.getenv("PIPER_LENGTH_SCALE", "0.75"))
 PIPER_NOISE_SCALE = float(os.getenv("PIPER_NOISE_SCALE", "1.0"))
 PIPER_NOISE_W_SCALE = float(os.getenv("PIPER_NOISE_W_SCALE", "1.0"))
 PIPER_NORMALIZE = os.getenv("PIPER_NORMALIZE", "false").lower() == "true"
+
+# Wyoming Protocol
+WYOMING_TTS_ENABLED = os.getenv("WYOMING_TTS_ENABLED", "true").lower() == "true"
+WYOMING_TTS_PORT = int(os.getenv("WYOMING_TTS_PORT", "10200"))
+WYOMING_ASR_ENABLED = os.getenv("WYOMING_ASR_ENABLED", "true").lower() == "true"
+WYOMING_ASR_PORT = int(os.getenv("WYOMING_ASR_PORT", "10300"))
+
+# Voice/Language settings (used by Wyoming services)
+VOICE_NAME = os.getenv("VOICE_NAME", "sv_SE-lisa-medium")
+VOICE_LANGUAGE = os.getenv("VOICE_LANGUAGE", "sv-SE")
+ASR_LANGUAGE = os.getenv("ASR_LANGUAGE", "sv")
