@@ -42,7 +42,7 @@ class Event:
 
         result = header_bytes
         if data_bytes:
-            result += data_bytes + b"\n"
+            result += data_bytes
         if self.payload:
             result += self.payload
 
@@ -70,8 +70,6 @@ async def read_event(reader: asyncio.StreamReader) -> Optional[Event]:
         data_length = header.get("data_length", 0)
         if data_length > 0:
             data_bytes = await reader.readexactly(data_length)
-            # Skip trailing newline after data
-            await reader.readexactly(1)
             data = json.loads(data_bytes.decode("utf-8"))
 
         # Read payload if present
