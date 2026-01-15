@@ -4,7 +4,7 @@ Wyoming protocol integration for voice-gateway.
 This package provides Wyoming protocol compatibility for Home Assistant voice integration.
 """
 
-from .server import start_wyoming_servers
+from .server import start_wyoming_servers, stop_wyoming_servers
 from .protocol import (
     Event,
     read_event,
@@ -14,14 +14,17 @@ from .protocol import (
     audio_stop,
     transcript,
     Info,
+    Attribution,
     AsrProgram,
     AsrModel,
     TtsProgram,
     TtsVoice,
+    TtsVoiceSpeaker,
 )
 
 __all__ = [
     "start_wyoming_servers",
+    "stop_wyoming_servers",
     "Event",
     "read_event",
     "write_event",
@@ -30,8 +33,10 @@ __all__ = [
     "audio_stop",
     "transcript",
     "Info",
+    "Attribution",
     "AsrProgram",
     "AsrModel",
     "TtsProgram",
     "TtsVoice",
+    "TtsVoiceSpeaker",
 ]

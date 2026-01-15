@@ -10,10 +10,15 @@ import logging
 from .protocol import (
     read_event, write_event,
     audio_start, audio_chunk, audio_stop,
-    Info, TtsProgram, TtsVoice,
+    Info, TtsProgram, TtsVoice, Attribution,
 )
 from tts import synthesize_chunks
 from config import VOICE_NAME, VOICE_LANGUAGE
+
+PIPER_ATTRIBUTION = Attribution(
+    name="rhasspy",
+    url="https://github.com/rhasspy/piper",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,15 +34,18 @@ def get_tts_info() -> Info:
         tts=[
             TtsProgram(
                 name="piper",
-                description="Piper neural TTS",
+                description="A fast, local, neural text to speech engine",
+                attribution=PIPER_ATTRIBUTION,
+                installed=True,
                 voices=[
                     TtsVoice(
                         name=VOICE_NAME,
                         languages=[VOICE_LANGUAGE],
+                        attribution=PIPER_ATTRIBUTION,
+                        installed=True,
                         description=f"Piper voice: {VOICE_NAME}",
                     )
                 ],
-                installed=True,
             )
         ]
     )

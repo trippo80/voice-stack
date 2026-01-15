@@ -13,6 +13,7 @@ from config import (
 )
 from .tts_service import handle_tts_client
 from .asr_service import handle_asr_client
+from .zeroconf import register_wyoming_services, stop_zeroconf
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,23 @@ async def start_wyoming_servers():
     else:
         logger.info("Wyoming ASR server disabled")
 
+    # Register services with Zeroconf for Home Assistant auto-discovery
+    if WYOMING_TTS_ENABLED or WYOMING_ASR_ENABLED:
+        try:
+            await register_wyoming_services(
+                tts_enabled=WYOMING_TTS_ENABLED,
+                tts_port=WYOMING_TTS_PORT,
+                asr_enabled=WYOMING_ASR_ENABLED,
+                asr_port=WYOMING_ASR_PORT,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to register Zeroconf services: {e}")
+
     if tasks:
         # Wait for all servers (they run forever unless cancelled)
         await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def stop_wyoming_servers():
+    """Stop Wyoming servers and cleanup Zeroconf."""
+    await stop_zeroconf()

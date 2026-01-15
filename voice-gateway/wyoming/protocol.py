@@ -166,18 +166,41 @@ def describe() -> Event:
 
 
 @dataclass
-class AsrModel:
-    """ASR model info."""
+class Attribution:
+    """Attribution info for artifacts."""
     name: str
-    languages: List[str] = field(default_factory=list)
-    description: str = ""
+    url: str
 
     def to_dict(self) -> dict:
         return {
             "name": self.name,
-            "languages": self.languages,
-            "description": self.description,
+            "url": self.url,
         }
+
+
+@dataclass
+class AsrModel:
+    """ASR model info."""
+    name: str
+    languages: List[str] = field(default_factory=list)
+    attribution: Optional[Attribution] = None
+    installed: bool = True
+    description: Optional[str] = None
+    version: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        d: Dict[str, Any] = {
+            "name": self.name,
+            "languages": self.languages,
+            "installed": self.installed,
+        }
+        if self.attribution:
+            d["attribution"] = self.attribution.to_dict()
+        if self.description:
+            d["description"] = self.description
+        if self.version:
+            d["version"] = self.version
+        return d
 
 
 @dataclass
@@ -185,16 +208,33 @@ class AsrProgram:
     """ASR program info."""
     name: str
     models: List[AsrModel] = field(default_factory=list)
+    attribution: Optional[Attribution] = None
     installed: bool = True
-    description: str = ""
+    description: Optional[str] = None
+    version: Optional[str] = None
 
     def to_dict(self) -> dict:
-        return {
+        d: Dict[str, Any] = {
             "name": self.name,
             "models": [m.to_dict() for m in self.models],
             "installed": self.installed,
-            "description": self.description,
         }
+        if self.attribution:
+            d["attribution"] = self.attribution.to_dict()
+        if self.description:
+            d["description"] = self.description
+        if self.version:
+            d["version"] = self.version
+        return d
+
+
+@dataclass
+class TtsVoiceSpeaker:
+    """TTS voice speaker info."""
+    name: str
+
+    def to_dict(self) -> dict:
+        return {"name": self.name}
 
 
 @dataclass
@@ -202,17 +242,26 @@ class TtsVoice:
     """TTS voice info."""
     name: str
     languages: List[str] = field(default_factory=list)
-    speakers: List[str] = field(default_factory=list)
-    description: str = ""
+    speakers: Optional[List[TtsVoiceSpeaker]] = None
+    attribution: Optional[Attribution] = None
+    installed: bool = True
+    description: Optional[str] = None
+    version: Optional[str] = None
 
     def to_dict(self) -> dict:
-        d = {
+        d: Dict[str, Any] = {
             "name": self.name,
             "languages": self.languages,
-            "description": self.description,
+            "installed": self.installed,
         }
         if self.speakers:
-            d["speakers"] = self.speakers
+            d["speakers"] = [s.to_dict() for s in self.speakers]
+        if self.attribution:
+            d["attribution"] = self.attribution.to_dict()
+        if self.description:
+            d["description"] = self.description
+        if self.version:
+            d["version"] = self.version
         return d
 
 
@@ -221,16 +270,24 @@ class TtsProgram:
     """TTS program info."""
     name: str
     voices: List[TtsVoice] = field(default_factory=list)
+    attribution: Optional[Attribution] = None
     installed: bool = True
-    description: str = ""
+    description: Optional[str] = None
+    version: Optional[str] = None
 
     def to_dict(self) -> dict:
-        return {
+        d: Dict[str, Any] = {
             "name": self.name,
             "voices": [v.to_dict() for v in self.voices],
             "installed": self.installed,
-            "description": self.description,
         }
+        if self.attribution:
+            d["attribution"] = self.attribution.to_dict()
+        if self.description:
+            d["description"] = self.description
+        if self.version:
+            d["version"] = self.version
+        return d
 
 
 @dataclass
@@ -240,7 +297,7 @@ class Info:
     tts: List[TtsProgram] = field(default_factory=list)
 
     def to_event(self) -> Event:
-        data = {}
+        data: Dict[str, Any] = {}
         if self.asr:
             data["asr"] = [p.to_dict() for p in self.asr]
         if self.tts:

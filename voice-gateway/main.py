@@ -7,7 +7,7 @@ import uvicorn
 
 from websocket_handler import ws_handler
 from routes import router as http_router
-from wyoming import start_wyoming_servers
+from wyoming import start_wyoming_servers, stop_wyoming_servers
 
 # Configure logging
 logging.basicConfig(
@@ -36,6 +36,7 @@ async def lifespan(app: FastAPI):
         await wyoming_task
     except asyncio.CancelledError:
         pass
+    await stop_wyoming_servers()
     logger.info("Wyoming servers stopped")
 
 

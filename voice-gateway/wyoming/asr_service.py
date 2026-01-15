@@ -10,7 +10,7 @@ import logging
 from .protocol import (
     read_event, write_event,
     transcript,
-    Info, AsrProgram, AsrModel,
+    Info, AsrProgram, AsrModel, Attribution,
 )
 from stt import transcribe_wav
 from utils import pcm_to_wav
@@ -18,22 +18,30 @@ from config import WHISPER_MODEL_NAME, ASR_LANGUAGE
 
 logger = logging.getLogger(__name__)
 
+WHISPER_ATTRIBUTION = Attribution(
+    name="openai",
+    url="https://github.com/openai/whisper",
+)
+
 
 def get_asr_info() -> Info:
     """Return ASR service info for Wyoming discovery."""
     return Info(
         asr=[
             AsrProgram(
-                name="whisper",
-                description=f"Faster Whisper ({WHISPER_MODEL_NAME})",
+                name="faster-whisper",
+                description="Faster Whisper speech-to-text",
+                attribution=WHISPER_ATTRIBUTION,
+                installed=True,
                 models=[
                     AsrModel(
                         name=WHISPER_MODEL_NAME,
                         languages=[ASR_LANGUAGE],
+                        attribution=WHISPER_ATTRIBUTION,
+                        installed=True,
                         description=f"Whisper {WHISPER_MODEL_NAME} model",
                     )
                 ],
-                installed=True,
             )
         ]
     )
